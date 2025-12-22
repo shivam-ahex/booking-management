@@ -1,0 +1,61 @@
+name: Angular CI/CD with Snyk Security Gate
+
+on:
+  pull_request:
+    branches: [ development ]
+  push:
+    branches: [ development ]
+
+jobs:
+  snyk-security:
+    name: Snyk Dependency Security Scan
+    runs-on: ubuntu-latest
+    # use `self-hosted` if required by your infra
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Snyk Test (Fail on vulnerabilities)
+        run: npx snyk test --severity-threshold=high
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: Upload results to Snyk Dashboard (optional)
+        run: npx snyk monitor
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+  build-and-deploy:
+    name: Build & Deploy Angular App
+    needs: snyk-security
+    runs-on: ubuntu-latest
+    if: success() && github.ref == 'refs/heads/development'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Angular
+        run: npx ng build --configuration=production
+
+      - name: Deploy
+        run: |
+          echo "Deploying application..."
+          # rsync / scp / docker / cloud deploy
